@@ -1,0 +1,116 @@
+---
+title: "Replication of Blanchard and Quah SVAR"
+author: "Aru Bhardwaj <br> ([arubhardwaj@hotmail.com](mailto:arubhardwaj@hotmail.com))"
+date: "26 July, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The extraordinary research work of Christopher Sims (1980), Macroeconomics and Reality, introduced the use of Vector Autoregression Models, which significantly affected the Macroeconomics modeling. Further, different economists interpreted the VAR in different ways and proposed further types on it. Blanchard and Quah (1989) proposed a different (SVAR) methodology for interpreting the results of AD and AS shocks. Here, I have replicated the analysis done in Blanchard and Quah (1989).
+
+
+```{r, include = FALSE, results = 'hide'}
+library(readxl)
+install.packages('prettydoc')
+library(prettydoc)
+data <- read_excel("BQ1989_Data.xls")
+
+install.packages('tseries')
+install.packages('vars')
+install.packages('TSstudio')
+install.packages('svars')
+
+library(tseries)
+library(vars)
+library(svars)
+library(TSstudio)
+```
+
+## Declaring Data in Time Series
+
+R does not know if data is in the time series format! It requires command for introducing data in the time series format, as the code shows, data starts from 1948 second quarter. The plot below shows the graphical description of quarterly time series data on GDP growth and unemployment.
+
+```{r}
+gdp <- ts(data$`GDP Growth`, start = c(1948, 2), frequency = 4)
+unrate <- ts(data$Unemployment, start = c(1948, 2), frequency = 4)
+BQdata <- cbind(gdp, unrate)
+
+plot.ts(BQdata, col = c('blue'))
+```
+
+
+## Lag length
+
+For estimating the VAR model, maximum lag length is required, which can be obtained by ``lagselect()`` function.
+
+```{r}
+lagselect <- VARselect(BQdata, type = "both")
+lagselect$selection
+```
+
+## VAR model
+
+Once we know the lag value, which is 2 here, we can compute the VAR model. With the help of ``vars`` package, computing the model is easy. All we have to use is ``VAR()`` function, enter the lag values and other information (if required), and the results can be summarized. 
+
+```{r}
+VARmodel <- VAR(BQdata, lag.max = 2, season = NULL, exogen = NULL)
+summary(VARmodel)
+```
+
+## SVAR of Blanchard and Quah (1989) type
+
+``vars`` package also allows to compute Blachard and Quah (1989) type SVAR by using ``BQ()`` function.
+
+```{r}
+BQ <- BQ(VARmodel)
+summary(BQ)
+```
+
+
+
+## IRF and FEVD
+
+This section is for computing Impulse Response Functions (IRF) and the Forecast Error Variance Decompositions (FEVD). Using ``n.ahead`` future values can be forecasted, for this analysis 20 values ahead of the data range are determined. 
+
+```{r}
+
+irf1 <- irf(BQ, impulse = 'gdp', response = 'gdp', n.ahead = 20)
+plot(irf1, col = c('blue', ' ', 'black'), lwd = 2)
+
+
+irf2 <- irf(BQ, impulse = 'gdp', response = 'unrate', n.ahead = 20)
+plot(irf2, col = c('blue', ' ', 'black'), lwd = 2)
+
+
+irf3 <- irf(BQ, impulse = 'unrate', response = 'unrate', n.ahead = 20)
+plot(irf3, col = c('blue', ' ', 'black'), lwd = 2)
+
+
+
+irf4 <- irf(BQ, impulse = 'unrate', response = 'gdp', n.ahead = 20)
+plot(irf4, col = c('blue', ' ', 'black'), lwd = 2)
+```
+```{r}
+fevd <- fevd(BQ, n.ahead = 20)
+plot(fevd, col = c('blue', 'green'), 
+     main = c("FEVD for GDP Growth", "FEVD for Unemployment"), 
+     cex.main = 1, cex.axis = 1)
+```
+
+
+
+
+## References
+
+Blanchard, O. and Quah, D. (1989), [The Dynamic Effects of Aggregate Demand and Supply
+Disturbances](https://www.jstor.org/stable/1827924), American Economic Review 79 (4), 655–673.
+
+Sims, C. A. (1980a), [Macroeconomics and Reality](https://www.jstor.org/stable/1912017), Econometrica 48, 1–48.
