@@ -1,0 +1,136 @@
+---
+title: "Code of the Project"
+author: ' '
+date: "10/11/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, message=FALSE, warning=FALSE}
+
+# Required Packages
+library(vars)
+library(tseries)
+library(svars)
+library(TSstudio)
+library(tidyverse)
+library(forecast)
+options(scipen=999)
+
+```
+
+```{r, include=FALSE}
+#---------------------------------------------------------------------
+# Importing Data
+#---------------------------------------------------------------------
+data <- read_csv("~/Downloads/Final_SVAR_DATA.csv")
+```
+
+```{r}
+#----------------------------------------------------------------------
+# Declaring Data in Time Series
+#----------------------------------------------------------------------
+
+unrate <- ts(data$Unrate, start = c(1991, 1), frequency = 12)
+interest.rate <- ts(data$interbank_rates, start = c(1991, 1), frequency = 12)
+cpi <- ts(data$cpi, start = c(1991, 1), frequency = 12)
+mortgage.interest <- ts(data$mortgage_interest_rate, start = c(1991, 1), frequency = 12)
+HI_victoria <- ts(data$HouseIndex_victoria, start = c(1991, 1), frequency = 12)
+HI_vancouver <- ts(data$HouseIndex_vancouver, start = c(1991, 1), frequency = 12)
+HI_montreal <- ts(data$HouseIndex_montreal, start = c(1991, 1), frequency = 12)
+personal.savings <- ts(data$personal_savings_rate, start = c(1991, 1), frequency = 12)
+
+VARdata <- cbind(unrate, interest.rate, cpi, mortgage.interest, HI_victoria, HI_vancouver, HI_montreal,personal.savings)
+
+#----------------------------------------------------------------------------------
+# Plotting the time-series variables.
+#----------------------------------------------------------------------------------
+
+
+plot.ts(VARdata, col = 'blue', main="Plots of all the variables used")
+ts_plot(unrate, Xtitle = "Time", Ytitle = "Unemployment Rate", title = "Unemployment Rate in Canada \n(January, 1991 to August, 2020)")
+ts_plot(interest.rate, Xtitle = "Time", Ytitle = "Interbank Rates", title = "3-Month or 90-day Rates and Yields: Interbank Rates for Canada \n(January, 1991 to August, 2020)")
+ts_plot(cpi, Xtitle = "Time", Ytitle = "Consumer Price Index", title = "Consumer Price Index of Canada \n(January, 1991 to August, 2020)")
+ts_plot(mortgage.interest, Xtitle = "Time", Ytitle = "Mortgage lending rate", title = "Canada Mortgage and Housing Corporation, \nconventional mortgage lending rate, 5-year term \n(January, 1991 to August, 2020)")
+ts_plot(HI_victoria, Xtitle = "Time", Ytitle = "Housing index", title = "House Price Index for Victoria \n(January, 1991 to August, 2020)")
+ts_plot(HI_vancouver, Xtitle = "Time", Ytitle = "Housing index", title = "House Price Index for Vancouver \n(January, 1991 to August, 2020)")
+ts_plot(HI_montreal, Xtitle = "Time", Ytitle = "Housing index", title = "House Price Index for Montreal \n(January, 1991 to August, 2020)")
+ts_plot(personal.savings, Xtitle = "Time", Ytitle = "Personal Savings Rate", title = "Personal Saving Rate in Canada \n(January, 1991 to August, 2020)")
+ts_plot(VARdata, title="VAR Data")
+
+
+#---------------------------------------------------------------------------------
+# Estimating LAG length
+#---------------------------------------------------------------------------------
+lagselect <- VARselect(VARdata, type = "both")
+lagselect$selection[1]
+
+
+#==============================================================================
+#==============================================================================
+
+# Vector Autoregression (VAR) Model
+
+#==============================================================================
+#==============================================================================
+
+
+# Here we will calculate VAR based on the LAG 3
+
+VAR.model <- VAR(VARdata, p = lagselect$selection[1], season = NULL, exog = NULL, type = "const") 
+summary(VAR.model)
+
+# Garner Causality Test
+causality(VAR.model, cause = 'unrate')
+causality(VAR.model, cause = "interest.rate")
+causality(VAR.model, cause = "cpi")
+causality(VAR.model, cause = "mortgage.interest")
+causality(VAR.model, cause = "HI_victoria")
+causality(VAR.model, cause ="HI_vancouver")
+causality(VAR.model, cause = "HI_montreal")
+causality(VAR.model, cause = "personal.savings")
+
+var.irf <- irf(VAR.model, n.ahead = 12, impulse = c('unrate','interest.rate','cpi','mortgage.interest', 'personal.savings'),response = c('HI_victoria', 'HI_vancouver', 'HI_montreal'))
+plot(var.irf, col = c('blue', ' ', 'black'), lwd = 2)
+
+
+#==============================================================================
+# SVAR
+#==============================================================================
+
+amat <- diag(8)
+diag(amat) <- NA
+amat[4, 1] <- NA
+amat[8, 1] <- NA
+amat
+
+
+SVAR.Model <-SVAR(x = VAR.model, estmethod = "direct", Amat = amat, 
+                  hessian = TRUE, method="BFGS")
+summary(SVAR.Model)
+
+
+
+# Shocks with forecasting
+SVAR.all <- irf(SVAR.Model, n.ahead = 12, impulse = c('unrate','interest.rate','cpi','mortgage.interest', 'personal.savings'),response = c('HI_victoria', 'HI_vancouver', 'HI_montreal'))
+
+plot(SVAR.all, col = c('blue', ' ', 'black'), lwd = 2)
+
+
+# Additional Plots
+
+Victoria <- ts(data$HouseIndex_victoria,  start = c(1991, 1), frequency = 12)
+Vancouver <- ts(data$HouseIndex_vancouver, start = c(1991, 1), frequency = 12 )
+Montreal <- ts(data$HouseIndex_montreal, start = c(1991, 1), frequency = 12)
+
+df <- cbind(Victoria, Vancouver, Montreal)
+
+ts_plot(df, Xtitle = "Time", Ytitle = "Index Value", title = "House Price Index \n(January, 1991 to August, 2020)")
+
+
+
+```
